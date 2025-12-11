@@ -177,7 +177,7 @@ app.post('/add-task', requireAuth, (req, res) => {
   const durationMinutes = parseInt(minutes) || 0;
   const totalMinutes = (durationHours * 60) + durationMinutes;
   
-  if (!taskName || !customerName) {
+  if (!taskName?.trim() || !customerName?.trim()) {
     return res.status(400).json({ error: 'Task name and customer name are required' });
   }
   

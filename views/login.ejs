@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - Time Tracking</title>
+  <title>Anmelden - Zeiterfassung</title>
   <style>
     * {
       margin: 0;
@@ -88,23 +88,23 @@
 </head>
 <body>
   <div class="container">
-    <h1>Login</h1>
+    <h1>Anmelden</h1>
     <% if (error) { %>
       <div class="error"><%= error %></div>
     <% } %>
     <form method="POST" action="/login">
       <div class="form-group">
-        <label for="username">Username</label>
+        <label for="username">Benutzername</label>
         <input type="text" id="username" name="username" required>
       </div>
       <div class="form-group">
-        <label for="password">Password</label>
+        <label for="password">Passwort</label>
         <input type="password" id="password" name="password" required>
       </div>
-      <button type="submit">Login</button>
+      <button type="submit">Anmelden</button>
     </form>
     <div class="link">
-      Don't have an account? <a href="/register">Register here</a>
+      Noch kein Konto? <a href="/register">Hier registrieren</a>
     </div>
   </div>
 </body>

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alle Einträge - Zeiterfassung</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .header h1 {
+      color: #333;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+    .nav-link {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .nav-link:hover {
+      background: #5568d3;
+    }
+    .logout-btn {
+      padding: 10px 20px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .logout-btn:hover {
+      background: #c82333;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+    }
+    label {
+      margin-bottom: 5px;
+      color: #555;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    input, select {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background: #667eea;
+      color: white;
+      font-weight: bold;
+      position: sticky;
+      top: 0;
+    }
+    tr:hover {
+      background: #f5f5f5;
+    }
+    .no-entries {
+      text-align: center;
+      color: #999;
+      padding: 40px;
+      font-style: italic;
+    }
+    .total-row {
+      font-weight: bold;
+      background: #e9ecef !important;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #667eea;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⏱️ Alle Einträge</h1>
+      <div class="user-info">
+        <a href="/dashboard" class="nav-link">Dashboard</a>
+        <span>Willkommen, <strong><%= username %></strong></span>
+        <a href="/logout" class="logout-btn">Abmelden</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Filter</h2>
+      <div class="filters">
+        <div class="filter-group">
+          <label for="customerFilter">Kunde</label>
+          <select id="customerFilter">
+            <option value="">Alle Kunden</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="taskFilter">Aufgabe</label>
+          <select id="taskFilter">
+            <option value="">Alle Aufgaben</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label for="dateFromFilter">Von Datum</label>
+          <input type="date" id="dateFromFilter">
+        </div>
+        <div class="filter-group">
+          <label for="dateToFilter">Bis Datum</label>
+          <input type="date" id="dateToFilter">
+        </div>
+      </div>
+      <button onclick="applyFilters()">Filter anwenden</button>
+      <button onclick="clearFilters()" style="background: #6c757d; margin-left: 10px;">Filter zurücksetzen</button>
+    </div>
+
+    <div class="card">
+      <h2>Einträge</h2>
+      <div id="entriesContainer">
+        <div class="loading">Lade Einträge...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allEntries = [];
+
+    // Load all entries on page load
+    async function loadEntries() {
+      try {
+        const response = await fetch('/api/all-entries');
+        const data = await response.json();
+        
+        if (data.entries) {
+          allEntries = data.entries;
+          populateFilters();
+          displayEntries(allEntries);
+        } else {
+          document.getElementById('entriesContainer').innerHTML = '<div class="no-entries">Keine Einträge gefunden</div>';
+        }
+      } catch (error) {
+        console.error('Error loading entries:', error);
+        document.getElementById('entriesContainer').innerHTML = '<div class="no-entries">Fehler beim Laden der Einträge</div>';
+      }
+    }
+
+    // Populate filter dropdowns with unique values
+    function populateFilters() {
+      const customers = [...new Set(allEntries.map(e => e.customer_name).filter(Boolean))].sort();
+      const tasks = [...new Set(allEntries.map(e => e.task_name).filter(Boolean))].sort();
+      
+      const customerSelect = document.getElementById('customerFilter');
+      customers.forEach(customer => {
+        const option = document.createElement('option');
+        option.value = customer;
+        option.textContent = customer;
+        customerSelect.appendChild(option);
+      });
+      
+      const taskSelect = document.getElementById('taskFilter');
+      tasks.forEach(task => {
+        const option = document.createElement('option');
+        option.value = task;
+        option.textContent = task;
+        taskSelect.appendChild(option);
+      });
+    }
+
+    // Apply filters
+    function applyFilters() {
+      const customerFilter = document.getElementById('customerFilter').value;
+      const taskFilter = document.getElementById('taskFilter').value;
+      const dateFromFilter = document.getElementById('dateFromFilter').value;
+      const dateToFilter = document.getElementById('dateToFilter').value;
+      
+      let filteredEntries = allEntries.filter(entry => {
+        // Customer filter
+        if (customerFilter && entry.customer_name !== customerFilter) {
+          return false;
+        }
+        
+        // Task filter
+        if (taskFilter && entry.task_name !== taskFilter) {
+          return false;
+        }
+        
+        // Date filters
+        if (dateFromFilter || dateToFilter) {
+          const entryDate = parseGermanDate(entry.start_time);
+          
+          if (dateFromFilter) {
+            const fromDate = new Date(dateFromFilter);
+            fromDate.setHours(0, 0, 0, 0);
+            if (entryDate < fromDate) {
+              return false;
+            }
+          }
+          
+          if (dateToFilter) {
+            const toDate = new Date(dateToFilter);
+            toDate.setHours(23, 59, 59, 999);
+            if (entryDate > toDate) {
+              return false;
+            }
+          }
+        }
+        
+        return true;
+      });
+      
+      displayEntries(filteredEntries);
+    }
+
+    // Clear all filters
+    function clearFilters() {
+      document.getElementById('customerFilter').value = '';
+      document.getElementById('taskFilter').value = '';
+      document.getElementById('dateFromFilter').value = '';
+      document.getElementById('dateToFilter').value = '';
+      displayEntries(allEntries);
+    }
+
+    // Parse German date format (DD.MM.YYYY HH:MM)
+    function parseGermanDate(dateStr) {
+      const [datePart] = dateStr.split(' ');
+      const [day, month, year] = datePart.split('.');
+      return new Date(year, month - 1, day);
+    }
+
+    // Display entries in table
+    function displayEntries(entries) {
+      if (entries.length === 0) {
+        document.getElementById('entriesContainer').innerHTML = '<div class="no-entries">Keine Einträge gefunden</div>';
+        return;
+      }
+      
+      let totalMinutes = 0;
+      let html = '<table><thead><tr><th>Datum</th><th>Aufgabenname</th><th>Kunde</th><th>Beschreibung</th><th>Dauer</th><th>Startzeit</th><th>Endzeit</th></tr></thead><tbody>';
+      
+      entries.forEach(entry => {
+        totalMinutes += entry.duration;
+        const hours = Math.floor(entry.duration / 60);
+        const minutes = entry.duration % 60;
+        const date = parseGermanDate(entry.start_time).toLocaleDateString('de-DE');
+        
+        html += `
+          <tr>
+            <td>${escapeHtml(date)}</td>
+            <td>${escapeHtml(entry.task_name)}</td>
+            <td>${escapeHtml(entry.customer_name || '-')}</td>
+            <td>${escapeHtml(entry.description || '-')}</td>
+            <td>${hours}h ${minutes}m</td>
+            <td>${escapeHtml(entry.start_time)}</td>
+            <td>${escapeHtml(entry.end_time)}</td>
+          </tr>
+        `;
+      });
+
+      const totalHours = Math.floor(totalMinutes / 60);
+      const totalMins = totalMinutes % 60;
+      html += `
+        <tr class="total-row">
+          <td colspan="4">Gesamt (${entries.length} Einträge)</td>
+          <td>${totalHours}h ${totalMins}m</td>
+          <td colspan="2"></td>
+        </tr>
+      `;
+      html += '</tbody></table>';
+      
+      document.getElementById('entriesContainer').innerHTML = html;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Load entries when page loads
+    loadEntries();
+  </script>
+</body>
+</html>

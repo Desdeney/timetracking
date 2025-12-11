@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Time Tracking</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      color: #333;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    .logout-btn {
+      padding: 10px 20px;
+      background: #dc3545;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .logout-btn:hover {
+      background: #c82333;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      margin-bottom: 20px;
+      color: #333;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #555;
+      font-weight: bold;
+    }
+    input, textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+      font-family: Arial, sans-serif;
+    }
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .button-group {
+      display: flex;
+      gap: 10px;
+    }
+    button {
+      padding: 12px 30px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #5568d3;
+    }
+    .feierabend-btn {
+      background: #28a745;
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .feierabend-btn:hover {
+      background: #218838;
+    }
+    .success-message {
+      background: #d4edda;
+      color: #155724;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      border: 1px solid #c3e6cb;
+      display: none;
+    }
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      border: 1px solid #f5c6cb;
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+    th {
+      background: #667eea;
+      color: white;
+      font-weight: bold;
+    }
+    tr:hover {
+      background: #f5f5f5;
+    }
+    #tasksTable {
+      display: none;
+    }
+    .no-tasks {
+      text-align: center;
+      color: #999;
+      padding: 20px;
+      font-style: italic;
+    }
+    .total-row {
+      font-weight: bold;
+      background: #e9ecef !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⏱️ Time Tracking</h1>
+      <div class="user-info">
+        <span>Welcome, <strong><%= username %></strong></span>
+        <a href="/logout" class="logout-btn">Logout</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Track Your Time</h2>
+      <div id="successMessage" class="success-message"></div>
+      <div id="errorMessage" class="error-message"></div>
+      
+      <form id="taskForm">
+        <div class="form-group">
+          <label for="taskName">Task Name *</label>
+          <input type="text" id="taskName" name="taskName" required>
+        </div>
+        <div class="form-group">
+          <label for="description">Description</label>
+          <textarea id="description" name="description"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="duration">Duration (in minutes) *</label>
+          <input type="number" id="duration" name="duration" min="1" required>
+        </div>
+        <div class="button-group">
+          <button type="submit">Add Task</button>
+          <button type="button" class="feierabend-btn" onclick="showFeierabend()">Feierabend</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="card" id="tasksTable">
+      <h2>Today's Tasks</h2>
+      <div id="tasksContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('taskForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const formData = {
+        taskName: document.getElementById('taskName').value,
+        description: document.getElementById('description').value,
+        duration: document.getElementById('duration').value
+      };
+
+      try {
+        const response = await fetch('/add-task', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          showSuccess(`Task "${data.task.taskName}" added! Start: ${data.task.startTime}, End: ${data.task.endTime}`);
+          document.getElementById('taskForm').reset();
+        } else {
+          showError(data.error || 'Failed to add task');
+        }
+      } catch (error) {
+        showError('Failed to add task');
+      }
+    });
+
+    async function showFeierabend() {
+      try {
+        const response = await fetch('/feierabend');
+        const data = await response.json();
+
+        if (data.tasks && data.tasks.length > 0) {
+          displayTasks(data.tasks);
+        } else {
+          displayNoTasks();
+        }
+      } catch (error) {
+        showError('Failed to load tasks');
+      }
+    }
+
+    function displayTasks(tasks) {
+      let totalMinutes = 0;
+      let html = '<table><thead><tr><th>Task Name</th><th>Description</th><th>Duration (min)</th><th>Start Time</th><th>End Time</th></tr></thead><tbody>';
+      
+      tasks.forEach(task => {
+        totalMinutes += task.duration;
+        html += `
+          <tr>
+            <td>${escapeHtml(task.task_name)}</td>
+            <td>${escapeHtml(task.description || '-')}</td>
+            <td>${task.duration}</td>
+            <td>${escapeHtml(task.start_time)}</td>
+            <td>${escapeHtml(task.end_time)}</td>
+          </tr>
+        `;
+      });
+
+      html += `
+        <tr class="total-row">
+          <td colspan="2">Total</td>
+          <td>${totalMinutes} minutes (${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m)</td>
+          <td colspan="2"></td>
+        </tr>
+      `;
+      html += '</tbody></table>';
+      
+      document.getElementById('tasksContainer').innerHTML = html;
+      document.getElementById('tasksTable').style.display = 'block';
+    }
+
+    function displayNoTasks() {
+      document.getElementById('tasksContainer').innerHTML = '<div class="no-tasks">No tasks found for today</div>';
+      document.getElementById('tasksTable').style.display = 'block';
+    }
+
+    function showSuccess(message) {
+      const elem = document.getElementById('successMessage');
+      elem.textContent = message;
+      elem.style.display = 'block';
+      setTimeout(() => elem.style.display = 'none', 5000);
+    }
+
+    function showError(message) {
+      const elem = document.getElementById('errorMessage');
+      elem.textContent = message;
+      elem.style.display = 'block';
+      setTimeout(() => elem.style.display = 'none', 5000);
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

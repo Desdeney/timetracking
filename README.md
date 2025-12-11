@@ -15,8 +15,9 @@ A Node.js web application for tracking work time with user authentication and ta
 
 ## Requirements
 
-- Node.js (v14 or higher)
+- Node.js (v22 or higher recommended, v14+ minimum)
 - npm
+- If using nodenv or nvm, the `.node-version` file specifies Node.js 22
 
 ## Installation
 

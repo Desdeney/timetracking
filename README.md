@@ -31,6 +31,12 @@ cd timetracking
 npm install
 ```
 
+3. (Optional) Set environment variables for production:
+```bash
+export SESSION_SECRET=your-secure-random-secret-here
+export PORT=3000
+```
+
 ## Usage
 
 1. Start the application:

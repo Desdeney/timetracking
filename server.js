@@ -108,7 +108,7 @@ app.post('/register', async (req, res) => {
   const { username, password } = req.body;
   
   if (!username || !password) {
-    return res.render('register', { error: 'Username and password are required' });
+    return res.render('register', { error: 'Benutzername und Passwort sind erforderlich' });
   }
 
   try {
@@ -119,15 +119,15 @@ app.post('/register', async (req, res) => {
       function(err) {
         if (err) {
           if (err.message.includes('UNIQUE')) {
-            return res.render('register', { error: 'Username already exists' });
+            return res.render('register', { error: 'Benutzername existiert bereits' });
           }
-          return res.render('register', { error: 'Registration failed' });
+          return res.render('register', { error: 'Registrierung fehlgeschlagen' });
         }
         res.redirect('/login');
       }
     );
   } catch (error) {
-    res.render('register', { error: 'Registration failed' });
+    res.render('register', { error: 'Registrierung fehlgeschlagen' });
   }
 });
 
@@ -141,7 +141,7 @@ app.post('/login', (req, res) => {
   
   db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
     if (err || !user) {
-      return res.render('login', { error: 'Invalid username or password' });
+      return res.render('login', { error: 'Ungültiger Benutzername oder Passwort' });
     }
     
     const match = await bcrypt.compare(password, user.password);
@@ -150,7 +150,7 @@ app.post('/login', (req, res) => {
       req.session.username = user.username;
       res.redirect('/dashboard');
     } else {
-      res.render('login', { error: 'Invalid username or password' });
+      res.render('login', { error: 'Ungültiger Benutzername oder Passwort' });
     }
   });
 });
@@ -170,6 +170,27 @@ app.get('/dashboard', requireAuth, (req, res) => {
   res.render('dashboard', { username: req.session.username });
 });
 
+// All entries route
+app.get('/all-entries', requireAuth, (req, res) => {
+  res.render('allentries', { username: req.session.username });
+});
+
+// API endpoint to get all entries
+app.get('/api/all-entries', requireAuth, (req, res) => {
+  db.all(
+    `SELECT * FROM tasks 
+     WHERE user_id = ? 
+     ORDER BY created_at DESC`,
+    [req.session.userId],
+    (err, entries) => {
+      if (err) {
+        return res.status(500).json({ error: 'Einträge konnten nicht geladen werden' });
+      }
+      res.json({ entries });
+    }
+  );
+});
+
 // Add task route
 app.post('/add-task', requireAuth, (req, res) => {
   const { taskName, customerName, description, hours, minutes } = req.body;
@@ -178,11 +199,11 @@ app.post('/add-task', requireAuth, (req, res) => {
   const totalMinutes = (durationHours * 60) + durationMinutes;
   
   if (!taskName?.trim() || !customerName?.trim()) {
-    return res.status(400).json({ error: 'Task name and customer name are required' });
+    return res.status(400).json({ error: 'Aufgabenname und Kundenname sind erforderlich' });
   }
   
   if (totalMinutes <= 0) {
-    return res.status(400).json({ error: 'Duration must be greater than 0' });
+    return res.status(400).json({ error: 'Dauer muss größer als 0 sein' });
   }
   
   const times = calculateTimes(totalMinutes);
@@ -192,7 +213,7 @@ app.post('/add-task', requireAuth, (req, res) => {
     [req.session.userId, taskName, customerName, description || '', totalMinutes, times.startTime, times.endTime],
     function(err) {
       if (err) {
-        return res.status(500).json({ error: 'Failed to save task' });
+        return res.status(500).json({ error: 'Aufgabe konnte nicht gespeichert werden' });
       }
       res.json({ 
         success: true, 
@@ -222,7 +243,7 @@ app.get('/feierabend', requireAuth, (req, res) => {
     [req.session.userId, `${todayStr}%`],
     (err, tasks) => {
       if (err) {
-        return res.status(500).json({ error: 'Failed to fetch tasks' });
+        return res.status(500).json({ error: 'Aufgaben konnten nicht geladen werden' });
       }
       res.json({ tasks });
     }

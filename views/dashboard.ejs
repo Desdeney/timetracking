@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard - Time Tracking</title>
+  <title>Dashboard - Zeiterfassung</title>
   <style>
     * {
       margin: 0;
@@ -24,6 +24,8 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
     }
     .header h1 {
       color: #333;
@@ -32,6 +34,20 @@
       display: flex;
       align-items: center;
       gap: 20px;
+      flex-wrap: wrap;
+    }
+    .nav-link {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .nav-link:hover {
+      background: #5568d3;
     }
     .logout-btn {
       padding: 10px 20px;
@@ -165,56 +181,57 @@
 <body>
   <div class="container">
     <div class="header">
-      <h1>⏱️ Time Tracking</h1>
+      <h1>⏱️ Zeiterfassung</h1>
       <div class="user-info">
-        <span>Welcome, <strong><%= username %></strong></span>
-        <a href="/logout" class="logout-btn">Logout</a>
+        <a href="/all-entries" class="nav-link">Alle Einträge</a>
+        <span>Willkommen, <strong><%= username %></strong></span>
+        <a href="/logout" class="logout-btn">Abmelden</a>
       </div>
     </div>
 
     <div class="card">
-      <h2>Track Your Time</h2>
+      <h2>Erfassen Sie Ihre Zeit</h2>
       <div id="successMessage" class="success-message"></div>
       <div id="errorMessage" class="error-message"></div>
       
       <form id="taskForm">
         <div class="form-group">
-          <label for="taskName">Task Name *</label>
+          <label for="taskName">Aufgabenname *</label>
           <input type="text" id="taskName" name="taskName" required>
         </div>
         <div class="form-group">
-          <label for="customerName">Customer Name *</label>
+          <label for="customerName">Kundenname *</label>
           <input type="text" id="customerName" name="customerName" required>
         </div>
         <div class="form-group">
-          <label for="description">Description</label>
+          <label for="description">Beschreibung</label>
           <textarea id="description" name="description"></textarea>
         </div>
         <div class="form-group">
-          <label>Duration *</label>
+          <label>Dauer *</label>
           <div style="display: flex; gap: 10px; align-items: center;">
             <div style="flex: 1;">
               <input type="number" id="hours" name="hours" min="0" value="0" style="width: 100%;">
-              <small style="color: #666;">Hours</small>
+              <small style="color: #666;">Stunden</small>
             </div>
             <div style="flex: 1;">
               <input type="number" id="minutes" name="minutes" min="0" max="59" value="0" style="width: 100%;">
-              <small style="color: #666;">Minutes</small>
+              <small style="color: #666;">Minuten</small>
             </div>
           </div>
         </div>
         <div class="button-group">
-          <button type="submit">Add Task</button>
+          <button type="submit">Aufgabe hinzufügen</button>
           <button type="button" class="feierabend-btn" onclick="showFeierabend()">Feierabend</button>
         </div>
       </form>
     </div>
 
     <div class="card" id="tasksTable">
-      <h2>Today's Tasks</h2>
+      <h2>Heutige Aufgaben</h2>
       <div class="form-group" id="searchContainer" style="display: none;">
-        <label for="searchInput">Search Tasks</label>
-        <input type="text" id="searchInput" placeholder="Search by task name, customer, or description...">
+        <label for="searchInput">Aufgaben suchen</label>
+        <input type="text" id="searchInput" placeholder="Suchen Sie nach Aufgabenname, Kunde oder Beschreibung...">
       </div>
       <div id="tasksContainer"></div>
     </div>
@@ -230,7 +247,7 @@
       const minutes = parseInt(document.getElementById('minutes').value) || 0;
       
       if (hours === 0 && minutes === 0) {
-        showError('Duration must be greater than 0');
+        showError('Dauer muss größer als 0 sein');
         return;
       }
       
@@ -256,15 +273,14 @@
         if (data.success) {
           const durationHours = Math.floor(data.task.duration / 60);
           const durationMinutes = data.task.duration % 60;
-          showSuccess(`Task "${data.task.taskName}" for customer "${data.task.customerName}" added! Duration: ${durationHours}h ${durationMinutes}m, Start: ${data.task.startTime}, End: ${data.task.endTime}`);
-          document.getElementById('taskForm').reset();
-          document.getElementById('hours').value = '0';
-          document.getElementById('minutes').value = '0';
+          showSuccess(`Aufgabe "${data.task.taskName}" für Kunde "${data.task.customerName}" hinzugefügt! Dauer: ${durationHours}h ${durationMinutes}m, Start: ${data.task.startTime}, Ende: ${data.task.endTime}`);
+          // Reload the page to update the table
+          window.location.reload();
         } else {
-          showError(data.error || 'Failed to add task');
+          showError(data.error || 'Aufgabe konnte nicht hinzugefügt werden');
         }
       } catch (error) {
-        showError('Failed to add task');
+        showError('Aufgabe konnte nicht hinzugefügt werden');
       }
     });
 
@@ -282,7 +298,7 @@
           document.getElementById('searchContainer').style.display = 'none';
         }
       } catch (error) {
-        showError('Failed to load tasks');
+        showError('Aufgaben konnten nicht geladen werden');
       }
     }
 
@@ -301,7 +317,7 @@
 
     function displayTasks(tasks) {
       let totalMinutes = 0;
-      let html = '<table><thead><tr><th>Task Name</th><th>Customer</th><th>Description</th><th>Duration</th><th>Start Time</th><th>End Time</th></tr></thead><tbody>';
+      let html = '<table><thead><tr><th>Aufgabenname</th><th>Kunde</th><th>Beschreibung</th><th>Dauer</th><th>Startzeit</th><th>Endzeit</th></tr></thead><tbody>';
       
       tasks.forEach(task => {
         totalMinutes += task.duration;
@@ -323,7 +339,7 @@
       const totalMins = totalMinutes % 60;
       html += `
         <tr class="total-row">
-          <td colspan="3">Total</td>
+          <td colspan="3">Gesamt</td>
           <td>${totalHours}h ${totalMins}m</td>
           <td colspan="2"></td>
         </tr>
@@ -335,7 +351,7 @@
     }
 
     function displayNoTasks() {
-      document.getElementById('tasksContainer').innerHTML = '<div class="no-tasks">No tasks found for today</div>';
+      document.getElementById('tasksContainer').innerHTML = '<div class="no-tasks">Keine Aufgaben für heute gefunden</div>';
       document.getElementById('tasksTable').style.display = 'block';
     }
 

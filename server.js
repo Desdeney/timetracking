@@ -33,6 +33,7 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       task_name TEXT NOT NULL,
+      customer_name TEXT NOT NULL,
       description TEXT,
       duration INTEGER NOT NULL,
       start_time TEXT NOT NULL,
@@ -171,18 +172,24 @@ app.get('/dashboard', requireAuth, (req, res) => {
 
 // Add task route
 app.post('/add-task', requireAuth, (req, res) => {
-  const { taskName, description, duration } = req.body;
-  const durationMinutes = parseInt(duration);
+  const { taskName, customerName, description, hours, minutes } = req.body;
+  const durationHours = parseInt(hours) || 0;
+  const durationMinutes = parseInt(minutes) || 0;
+  const totalMinutes = (durationHours * 60) + durationMinutes;
   
-  if (!taskName || !duration || isNaN(durationMinutes) || durationMinutes <= 0) {
-    return res.status(400).json({ error: 'Invalid task data' });
+  if (!taskName || !customerName) {
+    return res.status(400).json({ error: 'Task name and customer name are required' });
   }
   
-  const times = calculateTimes(durationMinutes);
+  if (totalMinutes <= 0) {
+    return res.status(400).json({ error: 'Duration must be greater than 0' });
+  }
+  
+  const times = calculateTimes(totalMinutes);
   
   db.run(
-    'INSERT INTO tasks (user_id, task_name, description, duration, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?)',
-    [req.session.userId, taskName, description || '', durationMinutes, times.startTime, times.endTime],
+    'INSERT INTO tasks (user_id, task_name, customer_name, description, duration, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [req.session.userId, taskName, customerName, description || '', totalMinutes, times.startTime, times.endTime],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'Failed to save task' });
@@ -192,8 +199,9 @@ app.post('/add-task', requireAuth, (req, res) => {
         task: {
           id: this.lastID,
           taskName,
+          customerName,
           description,
-          duration: durationMinutes,
+          duration: totalMinutes,
           startTime: times.startTime,
           endTime: times.endTime
         }

@@ -513,9 +513,9 @@
       
       const entryId = document.getElementById('editEntryId').value;
       const formData = {
-        taskName: document.getElementById('editTaskName').value,
-        customerName: document.getElementById('editCustomerName').value,
-        description: document.getElementById('editDescription').value,
+        taskName: document.getElementById('editTaskName').value.trim(),
+        customerName: document.getElementById('editCustomerName').value.trim(),
+        description: document.getElementById('editDescription').value.trim(),
         hours: parseInt(document.getElementById('editHours').value) || 0,
         minutes: parseInt(document.getElementById('editMinutes').value) || 0
       };

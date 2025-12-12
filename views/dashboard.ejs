@@ -600,8 +600,8 @@
       e.preventDefault();
       
       const formData = {
-        title: document.getElementById('todoTitle').value,
-        description: document.getElementById('todoDescription').value
+        title: document.getElementById('todoTitle').value.trim(),
+        description: document.getElementById('todoDescription').value.trim()
       };
 
       try {

@@ -283,9 +283,12 @@ app.post('/api/todos', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Titel ist erforderlich' });
   }
   
+  const trimmedTitle = title.trim();
+  const trimmedDescription = (description || '').trim();
+  
   db.run(
     'INSERT INTO todos (user_id, title, description) VALUES (?, ?, ?)',
-    [req.session.userId, title, description || ''],
+    [req.session.userId, trimmedTitle, trimmedDescription],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'ToDo konnte nicht gespeichert werden' });
@@ -294,8 +297,8 @@ app.post('/api/todos', requireAuth, (req, res) => {
         success: true, 
         todo: {
           id: this.lastID,
-          title,
-          description,
+          title: trimmedTitle,
+          description: trimmedDescription,
           done: 0
         }
       });
@@ -356,11 +359,14 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Dauer muss größer als 0 sein' });
   }
   
+  const trimmedTaskName = taskName.trim();
+  const trimmedCustomerName = customerName.trim();
+  const trimmedDescription = (description || '').trim();
   const times = calculateTimes(totalMinutes);
   
   db.run(
     'UPDATE tasks SET task_name = ?, customer_name = ?, description = ?, duration = ?, start_time = ?, end_time = ? WHERE id = ? AND user_id = ?',
-    [taskName, customerName, description || '', totalMinutes, times.startTime, times.endTime, id, req.session.userId],
+    [trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime, id, req.session.userId],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'Aufgabe konnte nicht aktualisiert werden' });
@@ -372,9 +378,9 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
         success: true,
         task: {
           id,
-          taskName,
-          customerName,
-          description,
+          taskName: trimmedTaskName,
+          customerName: trimmedCustomerName,
+          description: trimmedDescription,
           duration: totalMinutes,
           startTime: times.startTime,
           endTime: times.endTime

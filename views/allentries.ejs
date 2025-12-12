@@ -534,12 +534,12 @@
     }
 
     // Close modal when clicking outside
-    window.onclick = function(event) {
+    window.addEventListener('click', function(event) {
       const modal = document.getElementById('editModal');
       if (event.target === modal) {
         closeEditModal();
       }
-    }
+    });
 
     // Handle edit form submission
     document.getElementById('editForm').addEventListener('submit', async (e) => {

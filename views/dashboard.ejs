@@ -542,12 +542,12 @@
     }
 
     // Close modal when clicking outside
-    window.onclick = function(event) {
+    window.addEventListener('click', function(event) {
       const modal = document.getElementById('todoModal');
       if (event.target === modal) {
         closeTodoModal();
       }
-    }
+    });
 
     // Load all todos
     async function loadTodos() {

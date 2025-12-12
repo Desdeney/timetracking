@@ -688,7 +688,11 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
       
       // Optional: Mark todo as done after converting
-      await toggleTodo(id, true);
+      try {
+        await toggleTodo(id, true);
+      } catch (error) {
+        console.error('Failed to mark todo as done:', error);
+      }
     }
   </script>
 </body>

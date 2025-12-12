@@ -90,6 +90,16 @@ function formatDateTime(date) {
   return `${day}.${month}.${year} ${hours}:${minutes}`;
 }
 
+// Helper function to validate and trim required text fields
+function validateRequiredFields(fields, fieldNames) {
+  for (let i = 0; i < fields.length; i++) {
+    if (!fields[i]?.trim()) {
+      return { valid: false, error: `${fieldNames[i]} ist erforderlich` };
+    }
+  }
+  return { valid: true };
+}
+
 // Helper function to calculate start and end times
 function calculateTimes(durationMinutes) {
   const now = new Date();
@@ -210,8 +220,12 @@ app.post('/add-task', requireAuth, (req, res) => {
   const durationMinutes = parseInt(minutes) || 0;
   const totalMinutes = (durationHours * 60) + durationMinutes;
   
-  if (!taskName?.trim() || !customerName?.trim()) {
-    return res.status(400).json({ error: 'Aufgabenname und Kundenname sind erforderlich' });
+  const validation = validateRequiredFields(
+    [taskName, customerName], 
+    ['Aufgabenname', 'Kundenname']
+  );
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
   }
   
   if (totalMinutes <= 0) {
@@ -354,8 +368,12 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
   const durationMinutes = parseInt(minutes) || 0;
   const totalMinutes = (durationHours * 60) + durationMinutes;
   
-  if (!taskName?.trim() || !customerName?.trim()) {
-    return res.status(400).json({ error: 'Aufgabenname und Kundenname sind erforderlich' });
+  const validation = validateRequiredFields(
+    [taskName, customerName], 
+    ['Aufgabenname', 'Kundenname']
+  );
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
   }
   
   if (totalMinutes <= 0) {

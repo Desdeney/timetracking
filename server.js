@@ -42,6 +42,18 @@ function initializeDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS todos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      done INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
 }
 
 // Middleware
@@ -246,6 +258,128 @@ app.get('/feierabend', requireAuth, (req, res) => {
         return res.status(500).json({ error: 'Aufgaben konnten nicht geladen werden' });
       }
       res.json({ tasks });
+    }
+  );
+});
+
+// ToDo API endpoints
+app.get('/api/todos', requireAuth, (req, res) => {
+  db.all(
+    'SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC',
+    [req.session.userId],
+    (err, todos) => {
+      if (err) {
+        return res.status(500).json({ error: 'ToDos konnten nicht geladen werden' });
+      }
+      res.json({ todos });
+    }
+  );
+});
+
+app.post('/api/todos', requireAuth, (req, res) => {
+  const { title, description } = req.body;
+  
+  if (!title?.trim()) {
+    return res.status(400).json({ error: 'Titel ist erforderlich' });
+  }
+  
+  db.run(
+    'INSERT INTO todos (user_id, title, description) VALUES (?, ?, ?)',
+    [req.session.userId, title, description || ''],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'ToDo konnte nicht gespeichert werden' });
+      }
+      res.json({ 
+        success: true, 
+        todo: {
+          id: this.lastID,
+          title,
+          description,
+          done: 0
+        }
+      });
+    }
+  );
+});
+
+app.put('/api/todos/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const { done } = req.body;
+  
+  db.run(
+    'UPDATE todos SET done = ? WHERE id = ? AND user_id = ?',
+    [done ? 1 : 0, id, req.session.userId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'ToDo konnte nicht aktualisiert werden' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'ToDo nicht gefunden' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+app.delete('/api/todos/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  
+  db.run(
+    'DELETE FROM todos WHERE id = ? AND user_id = ?',
+    [id, req.session.userId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'ToDo konnte nicht gelöscht werden' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'ToDo nicht gefunden' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// Update task endpoint
+app.put('/api/tasks/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const { taskName, customerName, description, hours, minutes } = req.body;
+  const durationHours = parseInt(hours) || 0;
+  const durationMinutes = parseInt(minutes) || 0;
+  const totalMinutes = (durationHours * 60) + durationMinutes;
+  
+  if (!taskName?.trim() || !customerName?.trim()) {
+    return res.status(400).json({ error: 'Aufgabenname und Kundenname sind erforderlich' });
+  }
+  
+  if (totalMinutes <= 0) {
+    return res.status(400).json({ error: 'Dauer muss größer als 0 sein' });
+  }
+  
+  const times = calculateTimes(totalMinutes);
+  
+  db.run(
+    'UPDATE tasks SET task_name = ?, customer_name = ?, description = ?, duration = ?, start_time = ?, end_time = ? WHERE id = ? AND user_id = ?',
+    [taskName, customerName, description || '', totalMinutes, times.startTime, times.endTime, id, req.session.userId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Aufgabe konnte nicht aktualisiert werden' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Aufgabe nicht gefunden' });
+      }
+      res.json({ 
+        success: true,
+        task: {
+          id,
+          taskName,
+          customerName,
+          description,
+          duration: totalMinutes,
+          startTime: times.startTime,
+          endTime: times.endTime
+        }
+      });
     }
   );
 });

@@ -218,11 +218,14 @@ app.post('/add-task', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Dauer muss größer als 0 sein' });
   }
   
+  const trimmedTaskName = taskName.trim();
+  const trimmedCustomerName = customerName.trim();
+  const trimmedDescription = (description || '').trim();
   const times = calculateTimes(totalMinutes);
   
   db.run(
     'INSERT INTO tasks (user_id, task_name, customer_name, description, duration, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [req.session.userId, taskName, customerName, description || '', totalMinutes, times.startTime, times.endTime],
+    [req.session.userId, trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'Aufgabe konnte nicht gespeichert werden' });
@@ -231,9 +234,9 @@ app.post('/add-task', requireAuth, (req, res) => {
         success: true, 
         task: {
           id: this.lastID,
-          taskName,
-          customerName,
-          description,
+          taskName: trimmedTaskName,
+          customerName: trimmedCustomerName,
+          description: trimmedDescription,
           duration: totalMinutes,
           startTime: times.startTime,
           endTime: times.endTime

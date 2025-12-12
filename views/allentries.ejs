@@ -231,6 +231,24 @@
     .edit-btn:hover {
       background: #5568d3;
     }
+    .success-message {
+      background: #d4edda;
+      color: #155724;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      border: 1px solid #c3e6cb;
+      display: none;
+    }
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+      border: 1px solid #f5c6cb;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -274,6 +292,8 @@
 
     <div class="card">
       <h2>Einträge</h2>
+      <div id="successMessage" class="success-message"></div>
+      <div id="errorMessage" class="error-message"></div>
       <div id="entriesContainer">
         <div class="loading">Lade Einträge...</div>
       </div>
@@ -285,7 +305,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h2>Eintrag bearbeiten</h2>
-        <button class="close" onclick="closeEditModal()">&times;</button>
+        <button class="close" type="button" aria-label="Close modal" onclick="closeEditModal()">&times;</button>
       </div>
       <div class="modal-body">
         <form id="editForm">
@@ -477,6 +497,20 @@
       return div.innerHTML;
     }
 
+    function showSuccess(message) {
+      const elem = document.getElementById('successMessage');
+      elem.textContent = message;
+      elem.style.display = 'block';
+      setTimeout(() => elem.style.display = 'none', 5000);
+    }
+
+    function showError(message) {
+      const elem = document.getElementById('errorMessage');
+      elem.textContent = message;
+      elem.style.display = 'block';
+      setTimeout(() => elem.style.display = 'none', 5000);
+    }
+
     // Edit Modal Functions
     function openEditModal(entryId) {
       const entry = allEntries.find(e => e.id === entryId);
@@ -535,12 +569,12 @@
           closeEditModal();
           // Reload entries
           await loadEntries();
-          alert('Eintrag wurde erfolgreich aktualisiert');
+          showSuccess('Eintrag wurde erfolgreich aktualisiert');
         } else {
-          alert(data.error || 'Eintrag konnte nicht aktualisiert werden');
+          showError(data.error || 'Eintrag konnte nicht aktualisiert werden');
         }
       } catch (error) {
-        alert('Eintrag konnte nicht aktualisiert werden');
+        showError('Eintrag konnte nicht aktualisiert werden');
       }
     });
 

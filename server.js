@@ -42,6 +42,18 @@ function initializeDatabase() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS todos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      done INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+  `);
 }
 
 // Middleware
@@ -76,6 +88,16 @@ function formatDateTime(date) {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${day}.${month}.${year} ${hours}:${minutes}`;
+}
+
+// Helper function to validate and trim required text fields
+function validateRequiredFields(fields, fieldNames) {
+  for (let i = 0; i < fields.length; i++) {
+    if (!fields[i]?.trim()) {
+      return { valid: false, error: `${fieldNames[i]} ist erforderlich` };
+    }
+  }
+  return { valid: true };
 }
 
 // Helper function to calculate start and end times
@@ -198,19 +220,26 @@ app.post('/add-task', requireAuth, (req, res) => {
   const durationMinutes = parseInt(minutes) || 0;
   const totalMinutes = (durationHours * 60) + durationMinutes;
   
-  if (!taskName?.trim() || !customerName?.trim()) {
-    return res.status(400).json({ error: 'Aufgabenname und Kundenname sind erforderlich' });
+  const validation = validateRequiredFields(
+    [taskName, customerName], 
+    ['Aufgabenname', 'Kundenname']
+  );
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
   }
   
   if (totalMinutes <= 0) {
     return res.status(400).json({ error: 'Dauer muss größer als 0 sein' });
   }
   
+  const trimmedTaskName = taskName.trim();
+  const trimmedCustomerName = customerName.trim();
+  const trimmedDescription = (description || '').trim();
   const times = calculateTimes(totalMinutes);
   
   db.run(
     'INSERT INTO tasks (user_id, task_name, customer_name, description, duration, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [req.session.userId, taskName, customerName, description || '', totalMinutes, times.startTime, times.endTime],
+    [req.session.userId, trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime],
     function(err) {
       if (err) {
         return res.status(500).json({ error: 'Aufgabe konnte nicht gespeichert werden' });
@@ -219,9 +248,9 @@ app.post('/add-task', requireAuth, (req, res) => {
         success: true, 
         task: {
           id: this.lastID,
-          taskName,
-          customerName,
-          description,
+          taskName: trimmedTaskName,
+          customerName: trimmedCustomerName,
+          description: trimmedDescription,
           duration: totalMinutes,
           startTime: times.startTime,
           endTime: times.endTime
@@ -246,6 +275,138 @@ app.get('/feierabend', requireAuth, (req, res) => {
         return res.status(500).json({ error: 'Aufgaben konnten nicht geladen werden' });
       }
       res.json({ tasks });
+    }
+  );
+});
+
+// ToDo API endpoints
+app.get('/api/todos', requireAuth, (req, res) => {
+  db.all(
+    'SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC',
+    [req.session.userId],
+    (err, todos) => {
+      if (err) {
+        return res.status(500).json({ error: 'ToDos konnten nicht geladen werden' });
+      }
+      res.json({ todos });
+    }
+  );
+});
+
+app.post('/api/todos', requireAuth, (req, res) => {
+  const { title, description } = req.body;
+  
+  if (!title?.trim()) {
+    return res.status(400).json({ error: 'Titel ist erforderlich' });
+  }
+  
+  const trimmedTitle = title.trim();
+  const trimmedDescription = (description || '').trim();
+  
+  db.run(
+    'INSERT INTO todos (user_id, title, description) VALUES (?, ?, ?)',
+    [req.session.userId, trimmedTitle, trimmedDescription],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'ToDo konnte nicht gespeichert werden' });
+      }
+      res.json({ 
+        success: true, 
+        todo: {
+          id: this.lastID,
+          title: trimmedTitle,
+          description: trimmedDescription,
+          done: 0
+        }
+      });
+    }
+  );
+});
+
+app.put('/api/todos/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const { done } = req.body;
+  
+  db.run(
+    'UPDATE todos SET done = ? WHERE id = ? AND user_id = ?',
+    [done ? 1 : 0, id, req.session.userId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'ToDo konnte nicht aktualisiert werden' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'ToDo nicht gefunden' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+app.delete('/api/todos/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  
+  db.run(
+    'DELETE FROM todos WHERE id = ? AND user_id = ?',
+    [id, req.session.userId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'ToDo konnte nicht gelöscht werden' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'ToDo nicht gefunden' });
+      }
+      res.json({ success: true });
+    }
+  );
+});
+
+// Update task endpoint
+app.put('/api/tasks/:id', requireAuth, (req, res) => {
+  const { id } = req.params;
+  const { taskName, customerName, description, hours, minutes } = req.body;
+  const durationHours = parseInt(hours) || 0;
+  const durationMinutes = parseInt(minutes) || 0;
+  const totalMinutes = (durationHours * 60) + durationMinutes;
+  
+  const validation = validateRequiredFields(
+    [taskName, customerName], 
+    ['Aufgabenname', 'Kundenname']
+  );
+  if (!validation.valid) {
+    return res.status(400).json({ error: validation.error });
+  }
+  
+  if (totalMinutes <= 0) {
+    return res.status(400).json({ error: 'Dauer muss größer als 0 sein' });
+  }
+  
+  const trimmedTaskName = taskName.trim();
+  const trimmedCustomerName = customerName.trim();
+  const trimmedDescription = (description || '').trim();
+  const times = calculateTimes(totalMinutes);
+  
+  db.run(
+    'UPDATE tasks SET task_name = ?, customer_name = ?, description = ?, duration = ?, start_time = ?, end_time = ? WHERE id = ? AND user_id = ?',
+    [trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime, id, req.session.userId],
+    function(err) {
+      if (err) {
+        return res.status(500).json({ error: 'Aufgabe konnte nicht aktualisiert werden' });
+      }
+      if (this.changes === 0) {
+        return res.status(404).json({ error: 'Aufgabe nicht gefunden' });
+      }
+      res.json({ 
+        success: true,
+        task: {
+          id,
+          taskName: trimmedTaskName,
+          customerName: trimmedCustomerName,
+          description: trimmedDescription,
+          duration: totalMinutes,
+          startTime: times.startTime,
+          endTime: times.endTime
+        }
+      });
     }
   );
 });

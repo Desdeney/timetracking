@@ -1,89 +1,189 @@
 # Time Tracking App
 
-A Node.js web application for tracking work time with user authentication and task management.
+Eine Full-Stack Zeiterfassungs-Anwendung mit Web-Interface und React Native Mobile App, die eine gemeinsame MySQL-Datenbank verwenden.
 
 ## Features
 
-- ✅ User registration and login system
-- ✅ Secure password hashing with bcrypt
-- ✅ Track time by entering duration (in minutes), task name, and description
-- ✅ Automatic calculation of start and end times in format `dd.mm.YYYY hh:mm`
-- ✅ SQLite database for persistent storage
-- ✅ "Feierabend" button to display all tasks from the current day
-- ✅ Task summary with total time worked
-- ✅ Session-based authentication
+### Web & Mobile
+- ✅ Benutzer-Registrierung und Login System
+- ✅ Sichere Passwort-Verschlüsselung mit bcrypt
+- ✅ Zeiterfassung mit Eingabe von Stunden und Minuten
+- ✅ Aufgabenname und Kundenname für jede Aufgabe
+- ✅ Automatische Berechnung von Start- und Endzeit (Format: dd.mm.YYYY hh:mm)
+- ✅ "Feierabend" Funktion zeigt alle Aufgaben des aktuellen Tages
+- ✅ Aufgabenzusammenfassung mit Gesamtarbeitszeit
+- ✅ Session-basierte Authentifizierung
+- ✅ ToDo-Listen Verwaltung
+- ✅ Alle Einträge anzeigen und bearbeiten
 
-## Requirements
+### Technologie
+- ✅ **Backend:** Node.js + Express
+- ✅ **Datenbank:** MySQL (geteilt zwischen Web und Mobile)
+- ✅ **Web-Frontend:** EJS Templates
+- ✅ **Mobile App:** React Native mit Expo
+- ✅ **API:** RESTful API für Mobile-App Integration
 
-- Node.js (v22 or higher recommended, v14+ minimum)
-- npm
-- If using nodenv or nvm, the `.node-version` file specifies Node.js 22
+## Voraussetzungen
+
+### Backend
+- Node.js (v18 oder höher empfohlen)
+- npm oder yarn
+- MySQL 8.0 oder höher
+- Wenn Sie nodenv oder nvm verwenden, spezifiziert die `.node-version` Datei Node.js 22
+
+### Mobile App
+- Node.js (v18 oder höher)
+- Expo CLI
+- iOS Simulator oder Android Emulator (oder Expo Go App auf dem Smartphone)
 
 ## Installation
 
-1. Clone the repository:
+### Backend Setup
+
+1. Repository klonen:
 ```bash
 git clone https://github.com/Desdeney/timetracking.git
 cd timetracking
 ```
 
-2. Install dependencies:
+2. Dependencies installieren:
 ```bash
 npm install
 ```
 
-3. (Optional) Set environment variables for production:
-```bash
-export SESSION_SECRET=your-secure-random-secret-here
-export PORT=3000
+3. MySQL Datenbank einrichten:
+```sql
+CREATE DATABASE timetracking_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'timetracking_user'@'localhost' IDENTIFIED BY 'your_password';
+GRANT ALL PRIVILEGES ON timetracking_db.* TO 'timetracking_user'@'localhost';
+FLUSH PRIVILEGES;
 ```
 
-## Usage
+4. Umgebungsvariablen konfigurieren:
+```bash
+cp .env.example .env
+```
 
-1. Start the application:
+Bearbeiten Sie `.env` und füllen Sie die Werte aus:
+```env
+PORT=3000
+SESSION_SECRET=your-secure-random-secret-here
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=timetracking_user
+DB_PASSWORD=your_password
+DB_NAME=timetracking_db
+CORS_ORIGIN=*
+```
+
+### Mobile App Setup
+
+1. Zum mobile Ordner wechseln:
+```bash
+cd mobile
+```
+
+2. Dependencies installieren:
+```bash
+npm install
+```
+
+3. Backend-URL konfigurieren in `src/services/api.js`:
+```javascript
+const API_URL = 'http://localhost:3000'; // Oder Ihre Server-IP
+```
+
+## Verwendung
+
+### Backend starten
+
+1. Anwendung starten:
 ```bash
 npm start
 ```
 
-2. Open your browser and navigate to:
+2. Browser öffnen und navigieren zu:
 ```
 http://localhost:3000
 ```
 
-3. Register a new account or login with existing credentials
+3. Neues Konto registrieren oder mit bestehenden Zugangsdaten anmelden
 
-4. Track your time:
-   - Enter the task name
-   - Add an optional description
-   - Specify the duration in minutes
-   - Click "Add Task" to save
+### Mobile App starten
 
-5. Click the "Feierabend" button to view all tasks from today with:
-   - Task names and descriptions
-   - Duration in minutes
-   - Start and end times
-   - Total time worked
+1. Im mobile Ordner:
+```bash
+npm start
+```
 
-## Project Structure
+2. Wählen Sie eine Option:
+   - Drücken Sie `i` für iOS Simulator
+   - Drücken Sie `a` für Android Emulator
+   - Scannen Sie den QR-Code mit Expo Go App
+
+### Funktionen nutzen
+
+#### Aufgaben erfassen
+- Aufgabenname eingeben
+- Kundenname eingeben
+- Optionale Beschreibung hinzufügen
+- Dauer in Stunden und Minuten angeben
+- "Aufgabe hinzufügen" klicken
+
+#### Feierabend
+- Klicken Sie auf "Feierabend" Button
+- Sehen Sie alle heutigen Aufgaben mit:
+  - Aufgabennamen und Beschreibungen
+  - Dauer in Stunden und Minuten
+  - Start- und Endzeiten
+  - Gesamtarbeitszeit
+
+#### ToDo-Listen
+- Erstellen Sie neue ToDos
+- Markieren Sie ToDos als erledigt
+- Löschen Sie ToDos
+
+## Projektstruktur
 
 ```
 timetracking/
-├── server.js           # Main server file with Express routes
-├── views/              # EJS templates
-│   ├── login.ejs      # Login page
-│   ├── register.ejs   # Registration page
-│   └── dashboard.ejs  # Main dashboard
-├── package.json        # Project dependencies
-└── timetracking.db     # SQLite database (auto-generated)
+├── server.js              # Haupt-Server mit Express Routes und API
+├── database.js            # MySQL Datenbank-Konfiguration
+├── views/                 # EJS Templates für Web-Interface
+│   ├── login.ejs         # Login Seite
+│   ├── register.ejs      # Registrierungs Seite
+│   ├── dashboard.ejs     # Haupt-Dashboard
+│   └── allentries.ejs    # Alle Einträge Seite
+├── package.json           # Backend Dependencies
+├── .env.example          # Beispiel Umgebungsvariablen
+├── DEPLOYMENT.md         # Detaillierte Deployment-Anleitung
+└── mobile/               # React Native Mobile App
+    ├── App.js           # Haupt-App mit Navigation
+    ├── package.json     # Mobile App Dependencies
+    ├── app.json         # Expo Konfiguration
+    └── src/
+        ├── screens/     # App Bildschirme
+        ├── services/    # API Services
+        └── utils/       # Utilities und Context
 ```
 
-## Technologies Used
+## Verwendete Technologien
 
-- **Express** - Web framework
-- **SQLite3** - Database
-- **EJS** - Templating engine
-- **bcrypt** - Password hashing
-- **express-session** - Session management
+### Backend
+- **Express** - Web Framework
+- **MySQL2** - MySQL Datenbank-Treiber mit Promise-Unterstützung
+- **EJS** - Templating Engine für Web-Interface
+- **bcrypt** - Passwort-Hashing
+- **express-session** - Session Management
+- **cors** - Cross-Origin Resource Sharing für API
+- **dotenv** - Umgebungsvariablen Management
+
+### Mobile App
+- **React Native** - Mobile App Framework
+- **Expo** - Entwicklungs- und Build-Plattform
+- **React Navigation** - Navigation Library
+- **Axios** - HTTP Client für API-Anfragen
+- **AsyncStorage** - Lokaler Speicher
 
 ## Screenshots
 
@@ -99,23 +199,90 @@ timetracking/
 ### Feierabend - Today's Tasks
 ![Feierabend Table](https://github.com/user-attachments/assets/686a1e40-4761-492e-bd13-089423cccb64)
 
-## Database Schema
+## Datenbank-Schema
 
-### Users Table
-- `id` - Primary key
-- `username` - Unique username
-- `password` - Hashed password
-- `created_at` - Timestamp
+### Users Tabelle
+- `id` - Primary Key (AUTO_INCREMENT)
+- `username` - Eindeutiger Benutzername (VARCHAR)
+- `password` - Gehashtes Passwort (VARCHAR)
+- `created_at` - Zeitstempel (TIMESTAMP)
 
-### Tasks Table
-- `id` - Primary key
-- `user_id` - Foreign key to users
-- `task_name` - Name of the task
-- `description` - Task description
-- `duration` - Duration in minutes
-- `start_time` - Calculated start time (dd.mm.YYYY hh:mm)
-- `end_time` - Calculated end time (dd.mm.YYYY hh:mm)
-- `created_at` - Timestamp
+### Tasks Tabelle
+- `id` - Primary Key (AUTO_INCREMENT)
+- `user_id` - Foreign Key zu users (INT)
+- `task_name` - Name der Aufgabe (VARCHAR)
+- `customer_name` - Kundenname (VARCHAR)
+- `description` - Aufgabenbeschreibung (TEXT)
+- `duration` - Dauer in Minuten (INT)
+- `start_time` - Berechnete Startzeit (VARCHAR, Format: dd.mm.YYYY hh:mm)
+- `end_time` - Berechnete Endzeit (VARCHAR, Format: dd.mm.YYYY hh:mm)
+- `created_at` - Zeitstempel (TIMESTAMP)
+
+### ToDos Tabelle
+- `id` - Primary Key (AUTO_INCREMENT)
+- `user_id` - Foreign Key zu users (INT)
+- `title` - ToDo Titel (VARCHAR)
+- `description` - ToDo Beschreibung (TEXT)
+- `done` - Erledigt Status (TINYINT, 0 oder 1)
+- `created_at` - Zeitstempel (TIMESTAMP)
+
+## API Endpoints
+
+Die folgenden REST API Endpoints sind für die Mobile App verfügbar:
+
+### Authentifizierung
+- `POST /register` - Neuen Benutzer registrieren
+- `POST /login` - Benutzer anmelden
+- `GET /logout` - Benutzer abmelden
+
+### Aufgaben
+- `POST /add-task` - Neue Aufgabe erstellen
+- `GET /api/all-entries` - Alle Aufgaben abrufen
+- `PUT /api/tasks/:id` - Aufgabe aktualisieren
+- `GET /feierabend` - Heutige Aufgaben abrufen
+
+### ToDos
+- `GET /api/todos` - Alle ToDos abrufen
+- `POST /api/todos` - Neues ToDo erstellen
+- `PUT /api/todos/:id` - ToDo aktualisieren (erledigt/unerledigt)
+- `DELETE /api/todos/:id` - ToDo löschen
+
+## Deployment
+
+Für detaillierte Deployment-Anweisungen, siehe [DEPLOYMENT.md](DEPLOYMENT.md).
+
+### Schnellstart
+
+#### Backend auf Server deployen:
+```bash
+# PM2 installieren
+npm install -g pm2
+
+# .env Datei konfigurieren
+cp .env.example .env
+nano .env
+
+# Dependencies installieren
+npm install
+
+# Mit PM2 starten
+pm2 start server.js --name timetracking
+pm2 save
+```
+
+#### Mobile App für Stores bauen:
+```bash
+cd mobile
+
+# EAS CLI installieren
+npm install -g eas-cli
+
+# Build erstellen
+eas build --platform ios     # Für iOS
+eas build --platform android # Für Android
+```
+
+Siehe [DEPLOYMENT.md](DEPLOYMENT.md) für vollständige Anweisungen.
 
 ## License
 

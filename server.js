@@ -1,62 +1,25 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcrypt');
 const session = require('express-session');
 const path = require('path');
+const cors = require('cors');
+require('dotenv').config();
+const { pool, initializeDatabase } = require('./database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Database setup
-const db = new sqlite3.Database('./timetracking.db', (err) => {
-  if (err) {
-    console.error('Error opening database:', err);
-  } else {
-    console.log('Connected to SQLite database');
-    initializeDatabase();
-  }
+// Initialize database
+initializeDatabase().catch(err => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
 
-// Initialize database tables
-function initializeDatabase() {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      task_name TEXT NOT NULL,
-      customer_name TEXT NOT NULL,
-      description TEXT,
-      duration INTEGER NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-  `);
-
-  db.run(`
-    CREATE TABLE IF NOT EXISTS todos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      done INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id)
-    )
-  `);
-}
-
 // Middleware
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
@@ -136,19 +99,17 @@ app.post('/register', async (req, res) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    db.run('INSERT INTO users (username, password) VALUES (?, ?)', 
-      [username, hashedPassword], 
-      function(err) {
-        if (err) {
-          if (err.message.includes('UNIQUE')) {
-            return res.render('register', { error: 'Benutzername existiert bereits' });
-          }
-          return res.render('register', { error: 'Registrierung fehlgeschlagen' });
-        }
-        res.redirect('/login');
-      }
+    await pool.query(
+      'INSERT INTO users (username, password) VALUES (?, ?)', 
+      [username, hashedPassword]
     );
+    
+    res.redirect('/login');
   } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return res.render('register', { error: 'Benutzername existiert bereits' });
+    }
+    console.error('Registration error:', error);
     res.render('register', { error: 'Registrierung fehlgeschlagen' });
   }
 });
@@ -158,11 +119,14 @@ app.get('/login', (req, res) => {
   res.render('login', { error: null });
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   
-  db.get('SELECT * FROM users WHERE username = ?', [username], async (err, user) => {
-    if (err || !user) {
+  try {
+    const [rows] = await pool.query('SELECT * FROM users WHERE username = ?', [username]);
+    const user = rows[0];
+    
+    if (!user) {
       return res.render('login', { error: 'Ungültiger Benutzername oder Passwort' });
     }
     
@@ -174,7 +138,10 @@ app.post('/login', (req, res) => {
     } else {
       res.render('login', { error: 'Ungültiger Benutzername oder Passwort' });
     }
-  });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.render('login', { error: 'Ungültiger Benutzername oder Passwort' });
+  }
 });
 
 // Logout route
@@ -198,23 +165,23 @@ app.get('/all-entries', requireAuth, (req, res) => {
 });
 
 // API endpoint to get all entries
-app.get('/api/all-entries', requireAuth, (req, res) => {
-  db.all(
-    `SELECT * FROM tasks 
-     WHERE user_id = ? 
-     ORDER BY created_at DESC`,
-    [req.session.userId],
-    (err, entries) => {
-      if (err) {
-        return res.status(500).json({ error: 'Einträge konnten nicht geladen werden' });
-      }
-      res.json({ entries });
-    }
-  );
+app.get('/api/all-entries', requireAuth, async (req, res) => {
+  try {
+    const [entries] = await pool.query(
+      `SELECT * FROM tasks 
+       WHERE user_id = ? 
+       ORDER BY created_at DESC`,
+      [req.session.userId]
+    );
+    res.json({ entries });
+  } catch (error) {
+    console.error('Error fetching entries:', error);
+    res.status(500).json({ error: 'Einträge konnten nicht geladen werden' });
+  }
 });
 
 // Add task route
-app.post('/add-task', requireAuth, (req, res) => {
+app.post('/add-task', requireAuth, async (req, res) => {
   const { taskName, customerName, description, hours, minutes } = req.body;
   const durationHours = parseInt(hours) || 0;
   const durationMinutes = parseInt(minutes) || 0;
@@ -237,63 +204,64 @@ app.post('/add-task', requireAuth, (req, res) => {
   const trimmedDescription = (description || '').trim();
   const times = calculateTimes(totalMinutes);
   
-  db.run(
-    'INSERT INTO tasks (user_id, task_name, customer_name, description, duration, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [req.session.userId, trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Aufgabe konnte nicht gespeichert werden' });
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO tasks (user_id, task_name, customer_name, description, duration, start_time, end_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.session.userId, trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime]
+    );
+    
+    res.json({ 
+      success: true, 
+      task: {
+        id: result.insertId,
+        taskName: trimmedTaskName,
+        customerName: trimmedCustomerName,
+        description: trimmedDescription,
+        duration: totalMinutes,
+        startTime: times.startTime,
+        endTime: times.endTime
       }
-      res.json({ 
-        success: true, 
-        task: {
-          id: this.lastID,
-          taskName: trimmedTaskName,
-          customerName: trimmedCustomerName,
-          description: trimmedDescription,
-          duration: totalMinutes,
-          startTime: times.startTime,
-          endTime: times.endTime
-        }
-      });
-    }
-  );
+    });
+  } catch (error) {
+    console.error('Error adding task:', error);
+    res.status(500).json({ error: 'Aufgabe konnte nicht gespeichert werden' });
+  }
 });
 
 // Feierabend route - get all tasks from today
-app.get('/feierabend', requireAuth, (req, res) => {
+app.get('/feierabend', requireAuth, async (req, res) => {
   const today = new Date();
   const todayStr = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
   
-  db.all(
-    `SELECT * FROM tasks 
-     WHERE user_id = ? AND start_time LIKE ? 
-     ORDER BY start_time DESC`,
-    [req.session.userId, `${todayStr}%`],
-    (err, tasks) => {
-      if (err) {
-        return res.status(500).json({ error: 'Aufgaben konnten nicht geladen werden' });
-      }
-      res.json({ tasks });
-    }
-  );
+  try {
+    const [tasks] = await pool.query(
+      `SELECT * FROM tasks 
+       WHERE user_id = ? AND start_time LIKE ? 
+       ORDER BY start_time DESC`,
+      [req.session.userId, `${todayStr}%`]
+    );
+    res.json({ tasks });
+  } catch (error) {
+    console.error('Error fetching tasks:', error);
+    res.status(500).json({ error: 'Aufgaben konnten nicht geladen werden' });
+  }
 });
 
 // ToDo API endpoints
-app.get('/api/todos', requireAuth, (req, res) => {
-  db.all(
-    'SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC',
-    [req.session.userId],
-    (err, todos) => {
-      if (err) {
-        return res.status(500).json({ error: 'ToDos konnten nicht geladen werden' });
-      }
-      res.json({ todos });
-    }
-  );
+app.get('/api/todos', requireAuth, async (req, res) => {
+  try {
+    const [todos] = await pool.query(
+      'SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC',
+      [req.session.userId]
+    );
+    res.json({ todos });
+  } catch (error) {
+    console.error('Error fetching todos:', error);
+    res.status(500).json({ error: 'ToDos konnten nicht geladen werden' });
+  }
 });
 
-app.post('/api/todos', requireAuth, (req, res) => {
+app.post('/api/todos', requireAuth, async (req, res) => {
   const { title, description } = req.body;
   
   if (!title?.trim()) {
@@ -303,65 +271,68 @@ app.post('/api/todos', requireAuth, (req, res) => {
   const trimmedTitle = title.trim();
   const trimmedDescription = (description || '').trim();
   
-  db.run(
-    'INSERT INTO todos (user_id, title, description) VALUES (?, ?, ?)',
-    [req.session.userId, trimmedTitle, trimmedDescription],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'ToDo konnte nicht gespeichert werden' });
+  try {
+    const [result] = await pool.query(
+      'INSERT INTO todos (user_id, title, description) VALUES (?, ?, ?)',
+      [req.session.userId, trimmedTitle, trimmedDescription]
+    );
+    
+    res.json({ 
+      success: true, 
+      todo: {
+        id: result.insertId,
+        title: trimmedTitle,
+        description: trimmedDescription,
+        done: 0
       }
-      res.json({ 
-        success: true, 
-        todo: {
-          id: this.lastID,
-          title: trimmedTitle,
-          description: trimmedDescription,
-          done: 0
-        }
-      });
-    }
-  );
+    });
+  } catch (error) {
+    console.error('Error creating todo:', error);
+    res.status(500).json({ error: 'ToDo konnte nicht gespeichert werden' });
+  }
 });
 
-app.put('/api/todos/:id', requireAuth, (req, res) => {
+app.put('/api/todos/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { done } = req.body;
   
-  db.run(
-    'UPDATE todos SET done = ? WHERE id = ? AND user_id = ?',
-    [done ? 1 : 0, id, req.session.userId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'ToDo konnte nicht aktualisiert werden' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'ToDo nicht gefunden' });
-      }
-      res.json({ success: true });
+  try {
+    const [result] = await pool.query(
+      'UPDATE todos SET done = ? WHERE id = ? AND user_id = ?',
+      [done ? 1 : 0, id, req.session.userId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'ToDo nicht gefunden' });
     }
-  );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating todo:', error);
+    res.status(500).json({ error: 'ToDo konnte nicht aktualisiert werden' });
+  }
 });
 
-app.delete('/api/todos/:id', requireAuth, (req, res) => {
+app.delete('/api/todos/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   
-  db.run(
-    'DELETE FROM todos WHERE id = ? AND user_id = ?',
-    [id, req.session.userId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'ToDo konnte nicht gelöscht werden' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'ToDo nicht gefunden' });
-      }
-      res.json({ success: true });
+  try {
+    const [result] = await pool.query(
+      'DELETE FROM todos WHERE id = ? AND user_id = ?',
+      [id, req.session.userId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'ToDo nicht gefunden' });
     }
-  );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting todo:', error);
+    res.status(500).json({ error: 'ToDo konnte nicht gelöscht werden' });
+  }
 });
 
 // Update task endpoint
-app.put('/api/tasks/:id', requireAuth, (req, res) => {
+app.put('/api/tasks/:id', requireAuth, async (req, res) => {
   const { id } = req.params;
   const { taskName, customerName, description, hours, minutes } = req.body;
   const durationHours = parseInt(hours) || 0;
@@ -385,30 +356,32 @@ app.put('/api/tasks/:id', requireAuth, (req, res) => {
   const trimmedDescription = (description || '').trim();
   const times = calculateTimes(totalMinutes);
   
-  db.run(
-    'UPDATE tasks SET task_name = ?, customer_name = ?, description = ?, duration = ?, start_time = ?, end_time = ? WHERE id = ? AND user_id = ?',
-    [trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime, id, req.session.userId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: 'Aufgabe konnte nicht aktualisiert werden' });
-      }
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Aufgabe nicht gefunden' });
-      }
-      res.json({ 
-        success: true,
-        task: {
-          id,
-          taskName: trimmedTaskName,
-          customerName: trimmedCustomerName,
-          description: trimmedDescription,
-          duration: totalMinutes,
-          startTime: times.startTime,
-          endTime: times.endTime
-        }
-      });
+  try {
+    const [result] = await pool.query(
+      'UPDATE tasks SET task_name = ?, customer_name = ?, description = ?, duration = ?, start_time = ?, end_time = ? WHERE id = ? AND user_id = ?',
+      [trimmedTaskName, trimmedCustomerName, trimmedDescription, totalMinutes, times.startTime, times.endTime, id, req.session.userId]
+    );
+    
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Aufgabe nicht gefunden' });
     }
-  );
+    
+    res.json({ 
+      success: true,
+      task: {
+        id,
+        taskName: trimmedTaskName,
+        customerName: trimmedCustomerName,
+        description: trimmedDescription,
+        duration: totalMinutes,
+        startTime: times.startTime,
+        endTime: times.endTime
+      }
+    });
+  } catch (error) {
+    console.error('Error updating task:', error);
+    res.status(500).json({ error: 'Aufgabe konnte nicht aktualisiert werden' });
+  }
 });
 
 // Start server
